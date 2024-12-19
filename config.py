@@ -3,8 +3,7 @@ import json
 
 REQUIRED_CONFIG = ["TaskSettings", "Font", "Subtitle", "mkvmerge", "multiprocessing"]
 
-
-def make_default_config():
+def make_default_config(config_path):
     new_config = {
         "TaskSettings": {
             "DeleteFonts": False,
@@ -14,8 +13,9 @@ def make_default_config():
             "OutputSuffixName": "_Plex"
         },
         "Font": {
+            # Подразумеваем, что на Linux путь к unrar в PATH или /usr/bin/unrar
             "AllowedExtensions": [".ttf", ".otf", ".ttc"],
-            "Unrar_Path": "C:\\Program Files\\WinRAR\\UnRAR.exe"
+            "Unrar_Path": "/usr/bin/unrar"
         },
         "Subtitle": {
             "Keyword": {
@@ -28,27 +28,36 @@ def make_default_config():
             },
             "DefaultLanguage": "chs",
             "ShowSubtitleAuthorInTrackName": True
-
         },
         "mkvmerge": {
-            "path": "C:\\Program Files\\MKVToolNix\\mkvmerge.exe"
+            # mkvmerge на Linux обычно в PATH, например /usr/bin/mkvmerge
+            "path": "/usr/bin/mkvmerge"
         },
         "multiprocessing": {
             "thread_count": 24
         }
     }
-    os.makedirs(os.path.expandvars("%userprofile%/Documents/PlexMuxy"), exist_ok=True)
-    with open(os.path.expandvars("%userprofile%/Documents/PlexMuxy/config.json"), "w", encoding='utf-8') as output:
+
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+    with open(config_path, "w", encoding='utf-8') as output:
         json.dump(new_config, output, indent=2, ensure_ascii=False)
-    input(f"Default config file has been generated at {os.path.expandvars('%userprofile%/Documents/PlexMuxy/config.json')}, please check and modify it now. Please enter to continue...")
+    print(f"Default config file has been generated at {config_path}, please check and modify it if necessary.")
 
+def get_config(config_path=None) -> dict:
+    # Если путь к конфигу не задан, читаем из переменной окружения или берём /config/config.json
+    if config_path is None:
+        config_dir = os.environ.get("CONFIG_DIR", "/config")
+        config_path = os.path.join(config_dir, "config.json")
 
-def get_config() -> dict:
-    if not os.path.exists(os.path.expandvars("%userprofile%/Documents/PlexMuxy/config.json")):
-        print("Configuration file does not exist, creating default settings in [Document library folder]")
-        make_default_config()
-    with open(os.path.expandvars("%userprofile%/Documents/PlexMuxy/config.json"), "r", encoding='utf-8') as f:
+    if not os.path.exists(config_path):
+        print("Configuration file does not exist, creating default settings...")
+        make_default_config(config_path)
+
+    with open(config_path, "r", encoding='utf-8') as f:
         local_config = json.load(f)
+
     if any(item not in local_config.keys() for item in REQUIRED_CONFIG):
         raise ValueError("Config file does not meet requirements")
+
     return local_config
