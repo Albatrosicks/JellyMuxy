@@ -86,15 +86,20 @@ def get_all_directories():
     return rows
 
 def scan_root_directory():
-    # Теперь нам нужно рекурсивно проверить есть ли mkv файлы внутри директории верхнего уровня
-    for item in os.listdir(ROOT_DIR):
-        full_path = os.path.join(ROOT_DIR, item)
-        if os.path.isdir(full_path):
-            # Рекурсивно ищем mkv
-            if contains_mkv(full_path):
-                status, _ = get_directory_status(full_path)
-                if status is None:
-                    update_directory_status(full_path, "PENDING")
+    # Теперь ROOT_DIR содержит категории контента ("фильмы", "сериалы" и т.п.)
+    # Для каждой категории ищем директории с медиа-контентом второго уровня.
+    for category in os.listdir(ROOT_DIR):
+        category_path = os.path.join(ROOT_DIR, category)
+        if os.path.isdir(category_path):
+            # Сканируем директории внутри категории
+            for item in os.listdir(category_path):
+                full_path = os.path.join(category_path, item)
+                if os.path.isdir(full_path):
+                    # Проверяем содержит ли эта директория медиа (mkv)
+                    if contains_mkv(full_path):
+                        status, _ = get_directory_status(full_path)
+                        if status is None:
+                            update_directory_status(full_path, "PENDING")
 
 def contains_mkv(directory):
     # Рекурсивно проверяем наличие хотя бы одного mkv файла
