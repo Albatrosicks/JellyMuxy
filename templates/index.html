@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Directory Status</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #222;
+        color: #fff;
+      }
+    }
+
+    @media (prefers-color-scheme: light) {
+      body {
+        background-color: #f5f5f5;
+        color: #000;
+      }
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 0.8em;
+      height: 0.8em;
+      border-radius: 50%;
+      margin-right: 0.5em;
+    }
+
+    .status-OK .status-dot {
+      background-color: green;
+    }
+
+    .status-PENDING .status-dot {
+      background-color: gray;
+    }
+
+    .status-PROCESSING .status-dot {
+      background-color: orange;
+    }
+
+    .status-ERROR .status-dot {
+      background-color: red;
+    }
+
+    .processing-file {
+      color: gray;
+      font-style: italic;
+      margin-left: 1.5em;
+    }
+
+    form {
+      margin-bottom: 20px;
+      display: inline;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Directory Status</h1>
+  <form id="toggleForm" action="/toggle_pause" method="post" style="display:inline;">
+    <button type="submit" id="toggleButton">Loading...</button>
+  </form>
+
+  <div id="dirs"></div>
+
+  <script>
+    async function updateStatus() {
+      const res = await fetch('/status');
+      const data = await res.json();
+      const container = document.getElementById('dirs');
+      container.innerHTML = '';
+      data.forEach(dir => {
+        const div = document.createElement('div');
+        div.className = 'status-' + dir.status;
+        let statusName = dir.status;
+        const dot = '<span class="status-dot"></span>';
+        div.innerHTML = dot + dir.path + ' - ' + statusName;
+
+        if (dir.status === 'PROCESSING' && dir.current_file) {
+          const fileDiv = document.createElement('div');
+          fileDiv.className = 'processing-file';
+          fileDiv.textContent = dir.current_file;
+          div.appendChild(fileDiv);
+        }
+
+        container.appendChild(div);
+      });
+    }
+
+    async function updatePauseButton() {
+      const res = await fetch('/status_state');
+      const data = await res.json();
+      const button = document.getElementById('toggleButton');
+      if (data.paused) {
+        button.textContent = 'Unpause';
+      } else {
+        button.textContent = 'Pause';
+      }
+    }
+
+    document.getElementById('toggleForm').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      const res = await fetch('/toggle_pause', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      const button = document.getElementById('toggleButton');
+      if (data.paused) {
+        button.textContent = 'Unpause';
+      } else {
+        button.textContent = 'Pause';
+      }
+    });
+
+    updateStatus();
+    updatePauseButton();
+    setInterval(updateStatus, 1000);
+    setInterval(updatePauseButton, 1000);
+  </script>
+</body>
+
+</html>

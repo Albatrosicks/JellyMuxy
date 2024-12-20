@@ -1,90 +1,63 @@
 from config import get_config
-import re
+import logging
+import os
 
 config = get_config()
-# CHS
 CHS_LIST = config["Subtitle"]["Keyword"]["CHS"]
-# CHT
 CHT_LIST = config["Subtitle"]["Keyword"]["CHT"]
-# JPN and CHS
 JP_SC_LIST = config["Subtitle"]["Keyword"]["JP_SC"]
-# JPN and CHT
 JP_TC_LIST = config["Subtitle"]["Keyword"]["JP_TC"]
-# JPN
 JP_LIST = config["Subtitle"]["Keyword"]["JP"]
-# RUS
 RU_LIST = config["Subtitle"]["Keyword"]["RU"]
 ALLOWED_FONT_EXTENSIONS = config["Font"]["AllowedExtensions"]
 
-
-def subtitle_info_checker(subtitle_file_name: str) -> dict:
+def subtitle_info_checker(file_path):
     """
-    Check the subtitle file name and analyze language and group information
-    :param subtitle_file_name: subtitle file name (path)
-    :return: a dictionary of language and group information, empty string if not found
+    Определяет информацию о субтитрах на основе пути к файлу.
+    :param file_path: путь к файлу субтитров
+    :return: словарь с информацией о субтитрах
     """
-
-    user_default_language = config["Subtitle"]["DefaultLanguage"]
-    is_default_language = False
-
-    if any(indicator in subtitle_file_name.lower() for indicator in JP_SC_LIST):
-        language = "jp_sc"
-        mkv_language = "chi"
-        ietf_language = "zh-Hans"
-    elif any(indicator in subtitle_file_name.lower() for indicator in JP_TC_LIST):
-        language = "jp_tc"
-        mkv_language = "chi"
-        ietf_language = "zh-Hant"
-    elif any(indicator in subtitle_file_name.lower() for indicator in CHS_LIST):
-        language = "chs"
-        mkv_language = "chi"
-        ietf_language = "zh-Hans"
-    elif any(indicator in subtitle_file_name.lower() for indicator in CHT_LIST):
-        language = "cht"
-        mkv_language = "chi"
-        ietf_language = "zh-Hant"
-    elif any(indicator in subtitle_file_name.lower() for indicator in JP_LIST):
-        language = "jpn"
-        mkv_language = "jpn"
-        ietf_language = "ja"
-    elif any(indicator in subtitle_file_name.lower() for indicator in RU_LIST):
-        language = "rus"
-        mkv_language = "rus"
-        ietf_language = "ru"
-    else:
-        language = ""
-        mkv_language = ""
-        ietf_language = ""
-
-    if language == user_default_language:
-        is_default_language = True
-    elif language == "jp_sc" and user_default_language == "chs":
-        is_default_language = True
-    elif language == "jp_tc" and user_default_language == "cht":
-        is_default_language = True
-
-    sub_author = re.search(r'(^\[)(\w|\d|-|_|&|\.|!)+(]+?)', subtitle_file_name)
-    if sub_author is not None:
-        sub_author = sub_author.group(0)
-    else:
-        sub_author = ""
-
-    return {
-        "language": language,
-        "sub_author": sub_author.replace("[", "").replace("]", ""),
-        "default_language": is_default_language,
-        "mkv_language": mkv_language,
-        "ietf_language": ietf_language
+    sub_info = {
+        "language": "",
+        "mkv_language": "",
+        "default_language": False,
+        "forced_track": False
     }
+    try:
+        # Преобразуем путь к файлу в нижний регистр для сопоставления
+        normalized_path = os.path.normpath(file_path).lower()
 
+        # Определение языка на основе пути к файлу
+        if os.path.sep.join(["sub", "jp"]) in normalized_path or "japanese" in normalized_path:
+            sub_info["language"] = "Japanese"
+            sub_info["mkv_language"] = "jpn"
+        elif os.path.sep.join(["sub", "ru"]) in normalized_path or "russian" in normalized_path:
+            sub_info["language"] = "Russian"
+            sub_info["mkv_language"] = "rus"
+        elif os.path.sep.join(["sub", "eng"]) in normalized_path or "english" in normalized_path:
+            sub_info["language"] = "English"
+            sub_info["mkv_language"] = "eng"
+        else:
+            sub_info["language"] = "Unknown"
+            sub_info["mkv_language"] = "und"
+
+        # Определение, является ли субтитр языком по умолчанию или принудительным
+        basename = os.path.basename(file_path).lower()
+        if "default" in basename:
+            sub_info["default_language"] = True
+            sub_info["forced_track"] = True
+
+        logging.debug(f"Determined subtitle info for {file_path}: {sub_info}")
+
+    except Exception as e:
+        logging.error(f"Unexpected error in subtitle_info_checker for {file_path}: {e}")
+
+    return sub_info
 
 def is_font_file(f: str) -> bool:
     """
-    Check the file extension if is a font
-    :param f: file name (path)
-    :return: true if is a font file, false if not
+    Проверяет, является ли файл шрифтом по расширению.
+    :param f: имя файла (путь)
+    :return: True, если файл шрифт, иначе False
     """
-    if any(f.lower().endswith(ext) for ext in ALLOWED_FONT_EXTENSIONS):
-        return True
-    else:
-        return False
+    return any(f.lower().endswith(ext) for ext in ALLOWED_FONT_EXTENSIONS)
