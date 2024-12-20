@@ -4,15 +4,15 @@ import threading
 import logging
 import sqlite3
 import subprocess
+import json
 from datetime import datetime
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, request
 from pymkv import MKVFile, MKVTrack
 import shutil
 import re
 import py7zr
 import patoolib
 from pathlib import Path
-import json
 
 from config import get_config
 from subtitle_utils import subtitle_info_checker, is_font_file
@@ -39,6 +39,8 @@ T_COUNT = config["multiprocessing"]["thread_count"]
 DB_PATH = os.path.join(CONFIG_DIR, "directories.db")
 
 processing_files = {}  # {dir_path: current_file_name}
+
+paused = False  # Глобальный флаг паузы
 
 def init_db():
     os.makedirs(CONFIG_DIR, exist_ok=True)
@@ -85,29 +87,24 @@ def get_all_directories():
     conn.close()
     return rows
 
-def scan_root_directory():
-    # Теперь ROOT_DIR содержит категории контента ("фильмы", "сериалы" и т.п.)
-    # Для каждой категории ищем директории с медиа-контентом второго уровня.
-    for category in os.listdir(ROOT_DIR):
-        category_path = os.path.join(ROOT_DIR, category)
-        if os.path.isdir(category_path):
-            # Сканируем директории внутри категории
-            for item in os.listdir(category_path):
-                full_path = os.path.join(category_path, item)
-                if os.path.isdir(full_path):
-                    # Проверяем содержит ли эта директория медиа (mkv)
-                    if contains_mkv(full_path):
-                        status, _ = get_directory_status(full_path)
-                        if status is None:
-                            update_directory_status(full_path, "PENDING")
-
 def contains_mkv(directory):
-    # Рекурсивно проверяем наличие хотя бы одного mkv файла
     for root, dirs, files in os.walk(directory):
         for f in files:
             if f.endswith(".mkv"):
                 return True
     return False
+
+def scan_root_directory():
+    for category in os.listdir(ROOT_DIR):
+        category_path = os.path.join(ROOT_DIR, category)
+        if os.path.isdir(category_path):
+            for item in os.listdir(category_path):
+                full_path = os.path.join(category_path, item)
+                if os.path.isdir(full_path):
+                    if contains_mkv(full_path):
+                        status, _ = get_directory_status(full_path)
+                        if status is None:
+                            update_directory_status(full_path, "PENDING")
 
 def directory_changed_since_last_update(path, last_update_str):
     if not last_update_str:
@@ -130,7 +127,11 @@ def are_files_stable(path, wait_time=2):
         for f in files:
             full_path = os.path.join(root, f)
             try:
-                initial_sizes[full_path] = os.path.getsize(full_path)
+                size = os.path.getsize(full_path)
+                if size == 0:
+                    # Пустой файл
+                    pass
+                initial_sizes[full_path] = size
             except FileNotFoundError:
                 return False
 
@@ -182,6 +183,22 @@ def remove_empty_dirs(base_path):
             except OSError as e:
                 logging.error(f"Failed to remove empty directory {root}: {e}")
 
+def is_hevc(file_path):
+    cmd = ["mkvmerge", "-J", file_path]
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        info = json.loads(output)
+        for track in info.get("tracks", []):
+            if track.get("type") == "video":
+                codec = track.get("codec", "")
+                if "HEVC" in codec.upper():
+                    return True
+                else:
+                    return False
+        return False
+    except:
+        return False
+
 def process_directory(path):
     status, last_update = get_directory_status(path)
     if status == "OK":
@@ -196,11 +213,13 @@ def process_directory(path):
     update_directory_status(path, "PROCESSING")
 
     try:
-        # Теперь уже внутри process_directory мы делаем рекурсивное сканирование
         all_files = []
         for root, _, files in os.walk(path):
             for f in files:
-                all_files.append(os.path.join(root, f))
+                full_path = os.path.join(root, f)
+                if os.path.getsize(full_path) == 0:
+                    continue
+                all_files.append(full_path)
 
         fonts_dir, extra_dir = ensure_special_dirs(path)
 
@@ -219,11 +238,23 @@ def process_directory(path):
         unfiltered_font_list = os.listdir(fonts_dir) if os.path.exists(fonts_dir) else []
         font_list = list(filter(is_font_file, unfiltered_font_list))
 
-        folder_mkv_list = [f for f in all_files if f.endswith(".mkv")]
+        # Фильтруем mkv файлы: только hevc
+        folder_mkv_list = []
+        for f in all_files:
+            if f.endswith(".mkv"):
+                if is_hevc(f):
+                    folder_mkv_list.append(f)
+                else:
+                    logging.info(f"Skipping non-hevc mkv: {f}")
+
         folder_other_file_list = [f for f in all_files if not f.endswith(".mkv") and "." in os.path.basename(f)]
 
         for mkv_file_path in folder_mkv_list:
-            mkv_mux_task(mkv_file_path, folder_other_file_list, font_list, path)
+            try:
+                mkv_mux_task(mkv_file_path, folder_other_file_list, font_list, path)
+            except Exception as e:
+                logging.error(f"Error processing {mkv_file_path}: {e}")
+                continue
 
         if DELETE_FONTS and os.path.exists(fonts_dir):
             shutil.rmtree(fonts_dir)
@@ -253,8 +284,6 @@ def mkv_mux_task(mkv_file_path: str, folder_other_file_list: list, font_list: li
     new_mkv_name = os.path.join(mkv_dir, mkv_name_no_extension + SUFFIX_NAME + ".mkv")
 
     sub_track_count = 0
-
-    # Добавляем поддержку .srt субтитров
     subtitle_extensions = (".ass", ".srt")
 
     for item in folder_other_file_list:
@@ -284,7 +313,6 @@ def mkv_mux_task(mkv_file_path: str, folder_other_file_list: list, font_list: li
                     move_list.append(item)
 
     if sub_track_count == 0:
-        # Не нашли субтитров, проверим все *.ass и *.srt
         all_subs = [f for f in folder_other_file_list if f.endswith(subtitle_extensions)]
         for sub_file in all_subs:
             sub_info = subtitle_info_checker(sub_file)
@@ -309,15 +337,12 @@ def mkv_mux_task(mkv_file_path: str, folder_other_file_list: list, font_list: li
             if track.track_type == "subtitles":
                 track.default_track = True
 
-    # Добавляем шрифты
     for font in font_list:
         font_path = os.path.join(base_path, "Fonts", font)
         this_task.add_attachment(font_path)
 
-    # Обработка оригинального MKV
     if DELETE_ORIGINAL_MKV:
         delete_list.append(mkv_file_path)
-    # Если не удаляем MKV, то он остаётся на месте, мы его не перемещаем.
 
     try:
         this_task.mux(new_mkv_name, silent=True)
@@ -330,13 +355,11 @@ def mkv_mux_task(mkv_file_path: str, folder_other_file_list: list, font_list: li
         os.makedirs(extra_dir, exist_ok=True)
         open(os.path.join(extra_dir, ".ignore"), "w").close()
 
-    # Перемещаем файлы из move_list в Extra
     for f in move_list:
         if os.path.exists(f):
             dest = os.path.join(extra_dir, os.path.basename(f))
             logging.info(f"Moving file {f} to {dest}")
             shutil.move(f, dest)
-            # Проверяем, что файл исчез из исходного места
             if os.path.exists(f):
                 logging.warning(f"File {f} still exists after move! Trying to remove it.")
                 try:
@@ -346,7 +369,6 @@ def mkv_mux_task(mkv_file_path: str, folder_other_file_list: list, font_list: li
         else:
             logging.warning(f"File {f} does not exist before move operation.")
 
-    # Удаляем файлы из delete_list
     for f in delete_list:
         if os.path.exists(f):
             logging.info(f"Deleting file {f}")
@@ -354,7 +376,6 @@ def mkv_mux_task(mkv_file_path: str, folder_other_file_list: list, font_list: li
         else:
             logging.warning(f"File {f} not found for deletion.")
 
-    # Переименовываем финальный mkv
     if os.path.exists(new_mkv_name):
         if os.path.exists(original_final_name):
             os.remove(original_final_name)
@@ -365,11 +386,18 @@ def mkv_mux_task(mkv_file_path: str, folder_other_file_list: list, font_list: li
 
 def background_worker():
     while True:
+        if paused:
+            logging.info("Background worker paused. Waiting...")
+            time.sleep(5)
+            continue
         try:
             scan_root_directory()
             dirs = get_all_directories()
             for d in dirs:
                 path, status, _ = d
+                if paused:
+                    logging.info("Paused during directory processing iteration.")
+                    break
                 if status == "PENDING":
                     process_directory(path)
         except Exception as e:
@@ -393,7 +421,7 @@ def status():
         resp.append(entry)
     return jsonify(resp)
 
-@app.route('/')
+@app.route('/', methods=["GET"])
 def index():
     html_template = """
 <!DOCTYPE html>
@@ -450,10 +478,21 @@ def index():
     margin-left: 1.5em;
   }
 
+  form {
+    margin-bottom: 20px;
+  }
+
 </style>
 </head>
 <body>
 <h1>Directory Status</h1>
+<form action="/pause" method="post" style="display:inline;">
+  <button type="submit" name="action" value="pause">Pause</button>
+</form>
+<form action="/pause" method="post" style="display:inline;">
+  <button type="submit" name="action" value="unpause">Unpause</button>
+</form>
+
 <div id="dirs"></div>
 
 <script>
@@ -486,7 +525,17 @@ setInterval(updateStatus, 1000);
 </body>
 </html>
 """
-    return render_template_string(html_template)
+    return render_template_string(html_template, paused=paused)
 
+@app.route('/pause', methods=['POST'])
+def pause():
+    global paused
+    action = request.form.get("action")
+    if action == "pause":
+        paused = True
+    elif action == "unpause":
+        paused = False
+    return jsonify({"paused": paused})
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
