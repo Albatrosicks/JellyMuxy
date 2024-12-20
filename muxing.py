@@ -13,7 +13,7 @@ DELETE_FONTS = config["TaskSettings"]["DeleteFonts"]
 DELETE_ORIGINAL_MKV = config["TaskSettings"]["DeleteOriginalMKV"]
 DELETE_ORIGINAL_MKA = config["TaskSettings"]["DeleteOriginalMKA"]
 DELETE_SUB = config["TaskSettings"]["DeleteSubtitle"]
-SUFFIX_NAME = config["TaskSettings"].get("OutputSuffixName", "_Plex")
+SUFFIX_NAME = config["TaskSettings"].get("OutputSuffixName", "_Jelly")
 
 ALLOWED_CODECS = config.get("AllowedCodecs", ["HEVC", "AVC"])
 

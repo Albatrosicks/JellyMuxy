@@ -10,7 +10,7 @@ def make_default_config(config_path):
             "DeleteOriginalMKV": False,
             "DeleteOriginalMKA": False,
             "DeleteSubtitle": False,
-            "OutputSuffixName": "_Plex"
+            "OutputSuffixName": "_Jelly"
         },
         "Font": {
             "AllowedExtensions": [".ttf", ".otf", ".ttc"],
@@ -34,7 +34,7 @@ def make_default_config(config_path):
         "multiprocessing": {
             "thread_count": 24
         },
-        "AllowedCodecs": ["HEVC", "AVC"]
+        "AllowedCodecs": ["HEVC"]
     }
 
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
