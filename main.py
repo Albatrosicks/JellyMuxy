@@ -8,6 +8,7 @@ from processing import process_directory
 from config import get_config
 
 app = Flask(__name__)
+app.logger.setLevel(logging.ERROR)  # Only log errors and critical messages
 
 # Получение переменных окружения или установка значений по умолчанию
 ROOT_DIR = os.environ.get("ROOT_DIR", "/data")
