@@ -93,7 +93,7 @@ def status():
             "status": d[1],
             "last_update": d[2],
             "current_file": processing_files.get(d[0]),
-            # "logs": d[3]  # Если хотите отображать логи на фронтенде
+            "logs": d[3]  # Если хотите отображать логи на фронтенде
         }
         resp.append(entry)
     return jsonify(resp)
