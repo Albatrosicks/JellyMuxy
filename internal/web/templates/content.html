@@ -1,0 +1,21 @@
+{{define "content"}}
+{{range $category, $files := .FilesByCategory}}
+<div class="category">
+  <div class="category-header"
+    onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+    <h2>{{$category}}</h2>
+  </div>
+  <div class="category-content">
+    {{range $files}}
+    <div class="file-row">
+      <span class="status-dot status-{{.Status}}"></span>
+      <span>{{.DisplayPath}}</span>
+      {{if .StatusMsg}}
+      <span class="error-msg">{{.StatusMsg}}</span>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}

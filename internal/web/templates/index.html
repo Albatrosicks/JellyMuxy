@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Media Processor Status</title>
+  <style>
+    .status-dot {
+      height: 12px;
+      width: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    .status-waiting {
+      background-color: #888;
+    }
+
+    .status-processing {
+      background-color: #f0ad4e;
+    }
+
+    .status-processed {
+      background-color: #5cb85c;
+    }
+
+    .status-error {
+      background-color: #d9534f;
+    }
+
+    .category {
+      margin: 20px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+    }
+
+    .category-header {
+      cursor: pointer;
+      padding: 10px;
+      background: #f8f9fa;
+    }
+
+    .category-content {
+      padding: 10px;
+    }
+
+    .file-row {
+      padding: 5px 0;
+      display: flex;
+      align-items: center;
+    }
+
+    .error-msg {
+      color: #d9534f;
+      margin-left: 10px;
+      font-size: 0.9em;
+    }
+  </style>
+  <script src="https://unpkg.com/htmx.org"></script>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Media Processor Status</h1>
+    <button hx-get="/refresh" hx-target="#content">Refresh</button>
+
+    <div id="content">
+      {{range $category, $files := .FilesByCategory}}
+      <div class="category">
+        <div class="category-header"
+          onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+          <h2>{{$category}}</h2>
+        </div>
+        <div class="category-content">
+          {{range $files}}
+          <div class="file-row">
+            <span class="status-dot status-{{.Status}}"></span>
+            <span>{{.DisplayPath}}</span>
+            {{if .StatusMsg}}
+            <span class="error-msg">{{.StatusMsg}}</span>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+</body>
+
+</html>

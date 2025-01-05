@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>JellyMuxy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #ffffff;
+      --text: #1a1a1a;
+      --border: #e5e5e5;
+      --header-bg: #f8f9fa;
+      --error: #dc3545;
+      --processing: #ffc107;
+      --success: #198754;
+      --waiting: #6c757d;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a1a;
+        --text: #ffffff;
+        --border: #333;
+        --header-bg: #242424;
+      }
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.5;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .status-dot {
+      height: 12px;
+      width: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    .status-waiting {
+      background-color: var(--waiting);
+    }
+
+    .status-processing {
+      background-color: var(--processing);
+    }
+
+    .status-processed {
+      background-color: var(--success);
+    }
+
+    .status-error {
+      background-color: var(--error);
+    }
+
+    .category {
+      margin: 20px 0;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .category-header {
+      cursor: pointer;
+      padding: 10px;
+      background: var(--header-bg);
+      border-radius: 4px;
+      user-select: none;
+    }
+
+    .category-header h2 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .category-content {
+      padding: 10px;
+    }
+
+    .file-row {
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .file-row:last-child {
+      border-bottom: none;
+    }
+
+    .error-msg {
+      color: var(--error);
+      margin-left: 10px;
+      font-size: 0.9em;
+    }
+
+    button {
+      background: var(--header-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+  </style>
+  <script src="https://unpkg.com/htmx.org"></script>
+</head>
+
+<body>
+  <div class="container">
+    <h1>JellyMuxy</h1>
+    <div id="content" hx-get="/content" hx-trigger="every 5s" hx-swap="innerHTML">
+      {{template "content" .}}
+    </div>
+  </div>
+</body>
+
+</html>
